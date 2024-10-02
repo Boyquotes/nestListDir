@@ -13,13 +13,30 @@ const path = require("path");
 let DirectoryService = class DirectoryService {
     async listDirectories(directoryPath) {
         const directories = [];
+        const ignoredDirectory = 'node_modules';
         if (fs.existsSync(directoryPath)) {
             const files = await fs.readdir(directoryPath);
             for (const file of files) {
                 const filePath = path.join(directoryPath, file);
-                const stat = await fs.stat(filePath);
-                if (stat.isDirectory()) {
-                    directories.push({ name: file, creationDate: stat.birthtime });
+                try {
+                    const stat = await fs.lstat(filePath);
+                    if (file === ignoredDirectory) {
+                        console.log(`Ignorer le répertoire: ${filePath}`);
+                        continue;
+                    }
+                    if (stat.isDirectory()) {
+                        directories.push({ name: file, creationDate: stat.birthtime });
+                    }
+                    else if (stat.isSymbolicLink()) {
+                        const realPath = await fs.realpath(filePath);
+                        const realStat = await fs.stat(realPath);
+                        if (realStat.isDirectory()) {
+                            directories.push({ name: file, creationDate: realStat.birthtime });
+                        }
+                    }
+                }
+                catch (err) {
+                    console.error(`Erreur lors de la gestion du fichier ${file}: ${err.message}`);
                 }
             }
             directories.sort((a, b) => b.creationDate.getTime() - a.creationDate.getTime());
